@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react'
-import { GameLayout, RegionPicker, Stat, type RegionOption } from '../components/GameLayout'
+import { useState } from 'react'
+import { GameLayout, Stat } from '../components/GameLayout'
+import { PlayBar, RoundResult, useRoundGame } from '../components/RoundGame'
 import { flagUrl, inRegion, type Country } from '../data/countries'
-import { getBest, pick, sample, saveBest, shuffle } from '../lib/utils'
-
-const ROUNDS = 10
+import { pick, sample, shuffle } from '../lib/utils'
 
 type Mode = 'moneda' | 'idioma'
 
@@ -44,52 +43,16 @@ export function makeTraitQuestion(
 
 export default function TraitGame() {
   const [mode, setMode] = useState<Mode>('moneda')
-  const [region, setRegion] = useState<RegionOption>('Mundo')
-  const pool = inRegion(region)
   const { values, question } = MODES[mode]
-  const [round, setRound] = useState(1)
-  const [score, setScore] = useState(0)
-  const [used, setUsed] = useState<Set<string>>(new Set())
-  const [q, setQ] = useState<Question>(() => makeTraitQuestion(pool, values, new Set()))
-  const [chosen, setChosen] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
-  const [record, setRecord] = useState(false)
-  const bestKey = `rasgos-${mode}:${region}`
-
-  function restart() {
-    setRound(1)
-    setScore(0)
-    setUsed(new Set())
-    setQ(makeTraitQuestion(pool, values, new Set()))
-    setChosen(null)
-    setDone(false)
-    setRecord(false)
-  }
-
-  useEffect(() => {
-    restart()
-  }, [mode, region]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  function choose(v: string) {
-    if (chosen) return
-    setChosen(v)
-    if (v === q.answer) setScore((s) => s + 1)
-  }
-
-  function next() {
-    if (round >= ROUNDS) {
-      setDone(true)
-      setRecord(saveBest(bestKey, score))
-      return
-    }
-    const u = new Set(used).add(q.target.code)
-    setUsed(u)
-    setQ(makeTraitQuestion(pool, values, u))
-    setChosen(null)
-    setRound(round + 1)
-  }
-
-  const others = values(q.target).filter((v) => v !== q.answer)
+  const game = useRoundGame<Question>({
+    gameId: `rasgos-${mode}`,
+    max: 1,
+    deps: [mode],
+    subject: (q) => q.target.code,
+    make: ({ rng, used, region }) => makeTraitQuestion(inRegion(region), values, used, rng),
+  })
+  const { q, given } = game
+  const others = q && given ? values(q.target).filter((v) => v !== q.answer) : []
 
   return (
     <GameLayout
@@ -97,14 +60,13 @@ export default function TraitGame() {
       subtitle="Elige la moneda o el idioma oficial de cada país."
       stats={
         <>
-          <Stat label="Ronda" value={`${Math.min(round, ROUNDS)}/${ROUNDS}`} />
-          <Stat label="Aciertos" value={score} />
-          <Stat label="Récord" value={getBest(bestKey)} />
+          <Stat label="Ronda" value={`${game.index + 1}/${game.total === Infinity ? '∞' : game.total}`} />
+          <Stat label="Aciertos" value={game.score} />
+          {!game.daily && <Stat label="Récord" value={game.best} />}
         </>
       }
     >
-      <div className="toolbar">
-        <RegionPicker value={region} onChange={setRegion} />
+      <PlayBar game={game}>
         <div className="chips">
           {(Object.keys(MODES) as Mode[]).map((m) => (
             <button key={m} className={`chip ${mode === m ? 'on' : ''}`} onClick={() => setMode(m)}>
@@ -112,48 +74,46 @@ export default function TraitGame() {
             </button>
           ))}
         </div>
-      </div>
+      </PlayBar>
 
-      {done ? (
-        <div className="card result">
-          <h2>Resultado</h2>
-          <p className="big">
-            {score} / {ROUNDS}
-          </p>
-          {record && <p className="record">Nuevo récord</p>}
-          <button className="btn primary" onClick={restart}>
-            Jugar otra vez
-          </button>
-        </div>
+      {game.finished ? (
+        <RoundResult game={game} title={MODES[mode].label} />
       ) : (
-        <div className="card quiz">
-          <p className="question">{question}</p>
-          <div className="prompt">
-            <div className="prompt-country">
-              <img className="flag-small" src={flagUrl(q.target, 160)} alt="" />
-              <span>{q.target.name}?</span>
+        q && (
+          <div className="card quiz">
+            <p className="question">{question}</p>
+            <div className="prompt">
+              <div className="prompt-country">
+                <img className="flag-small" src={flagUrl(q.target, 160)} alt="" />
+                <span>{q.target.name}?</span>
+              </div>
+            </div>
+            <div className="options">
+              {q.options.map((v) => {
+                let cls = 'option'
+                if (given) cls += v === q.answer ? ' correct' : v === given.v ? ' wrong' : ' dim'
+                return (
+                  <button key={v} className={cls} onClick={() => game.answer(v, v === q.answer ? 1 : 0)}>
+                    {v}
+                  </button>
+                )
+              })}
+            </div>
+            {others.length > 0 && <p className="muted">También: {others.join(', ')}</p>}
+            <div className="quiz-actions">
+              {given && (
+                <button className="btn primary" onClick={game.next} autoFocus>
+                  {game.index + 1 >= game.total ? 'Ver resultado' : 'Siguiente →'}
+                </button>
+              )}
+              {game.total === Infinity && game.answers.length > 0 && (
+                <button className="btn" onClick={game.finish}>
+                  Terminar
+                </button>
+              )}
             </div>
           </div>
-          <div className="options">
-            {q.options.map((v) => {
-              let cls = 'option'
-              if (chosen) cls += v === q.answer ? ' correct' : v === chosen ? ' wrong' : ' dim'
-              return (
-                <button key={v} className={cls} onClick={() => choose(v)}>
-                  {v}
-                </button>
-              )
-            })}
-          </div>
-          {chosen && others.length > 0 && (
-            <p className="muted">También: {others.join(', ')}</p>
-          )}
-          {chosen && (
-            <button className="btn primary next" onClick={next} autoFocus>
-              {round >= ROUNDS ? 'Ver resultado' : 'Siguiente →'}
-            </button>
-          )}
-        </div>
+        )
       )}
     </GameLayout>
   )

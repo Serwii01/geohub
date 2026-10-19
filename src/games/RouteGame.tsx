@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react'
 import { CountryInput } from '../components/CountryInput'
 import { GameLayout, Loading, Stat } from '../components/GameLayout'
+import { DailyResult, ModeSwitch, useDailyPuzzle } from '../components/RoundGame'
 import { WorldMap } from '../components/WorldMap'
 import { BY_CODE, COUNTRIES, flagUrl } from '../data/countries'
 import { mainShape, useGeo, type GeoData } from '../data/geo'
-import { getBest, pick, saveBest } from '../lib/utils'
+import { getBest, pick, saveBest, type Rng } from '../lib/utils'
 
 type Graph = Map<string, string[]>
 
@@ -42,14 +43,14 @@ interface Puzzle {
   optimal: string[] // países intermedios de una ruta óptima
 }
 
-function makePuzzle(g: Graph): Puzzle {
+function makePuzzle(g: Graph, rng: Rng = Math.random): Puzzle {
   const candidates = [...g.keys()].filter((k) => g.get(k)!.length > 0)
   for (;;) {
-    const start = pick(candidates)
+    const start = pick(candidates, rng)
     const { dist, parent } = bfs(g, start)
     const ends = [...dist].filter(([, d]) => d >= 3 && d <= 6).map(([k]) => k)
     if (!ends.length) continue
-    const end = pick(ends)
+    const end = pick(ends, rng)
     const optimal: string[] = []
     for (let cur = parent.get(end); cur && cur !== start; cur = parent.get(cur)) optimal.unshift(cur)
     return { start, end, hops: dist.get(end)!, fromStart: dist, fromEnd: bfs(g, end).dist, optimal }
@@ -61,13 +62,23 @@ const COLORS = { good: 'var(--good)', near: 'var(--warn)', far: 'var(--bad)' }
 export default function RouteGame() {
   const geo = useGeo()
   const graph = useMemo(() => (geo ? buildGraph(geo) : null), [geo])
-  const [puzzle, setPuzzle] = useState<Puzzle | null>(null)
-  const [guesses, setGuesses] = useState<string[]>([])
-  const [hints, setHints] = useState<string[]>([])
+  const mode = useDailyPuzzle<{ guesses: string[]; hints: string[] }>('rutas')
+  const dailyPuzzle = useMemo(
+    () => (graph ? makePuzzle(graph, mode.rng()) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [graph, mode.date],
+  )
+  const [freePuzzle, setFreePuzzle] = useState<Puzzle | null>(null)
+  const [freeGuesses, setFreeGuesses] = useState<string[]>([])
+  const [freeHints, setFreeHints] = useState<string[]>([])
   const [wins, setWins] = useState(0)
 
-  if (graph && !puzzle) setPuzzle(makePuzzle(graph))
+  if (graph && !freePuzzle) setFreePuzzle(makePuzzle(graph))
+  const puzzle = mode.daily ? dailyPuzzle : freePuzzle
   if (!geo || !graph || !puzzle) return <GameLayout title="Rutas"><Loading /></GameLayout>
+
+  const guesses = mode.daily ? (mode.record?.progress?.guesses ?? []) : freeGuesses
+  const hints = mode.daily ? (mode.record?.progress?.hints ?? []) : freeHints
 
   const { start, end, hops, fromStart, fromEnd, optimal } = puzzle
   const maxGuesses = hops - 1 + 4
@@ -85,11 +96,32 @@ export default function RouteGame() {
     return 'far'
   }
 
+  const SQUARE = { good: '🟩', near: '🟨', far: '🟥' }
+
+  /** Guarda o aplica el nuevo estado según el modo */
+  function update(nextGuesses: string[], nextHints: string[]) {
+    const done =
+      bfs(graph!, start, new Set([start, end, ...nextGuesses])).dist.has(end) || nextGuesses.length >= maxGuesses
+    if (mode.daily) {
+      const hit = bfs(graph!, start, new Set([start, end, ...nextGuesses])).dist.has(end)
+      mode.save({
+        done,
+        score: hit ? maxGuesses - nextGuesses.length + 1 : 0,
+        max: maxGuesses,
+        squares: nextGuesses.map((c) => SQUARE[quality(c)]).join('') + (nextHints.length ? ' 💡'.repeat(nextHints.length) : ''),
+        progress: { guesses: nextGuesses, hints: nextHints },
+      })
+    } else {
+      setFreeGuesses(nextGuesses)
+      setFreeHints(nextHints)
+    }
+  }
+
   function guess(code: string) {
     if (over || allowed.has(code)) return
     const next = [...guesses, code]
-    setGuesses(next)
-    if (bfs(graph!, start, new Set([start, end, ...next])).dist.has(end)) {
+    update(next, hints)
+    if (!mode.daily && bfs(graph!, start, new Set([start, end, ...next])).dist.has(end)) {
       setWins((w) => w + 1)
       saveBest('rutas', wins + 1)
     }
@@ -97,13 +129,13 @@ export default function RouteGame() {
 
   function hint() {
     const missing = optimal.filter((c) => !guesses.includes(c) && !hints.includes(c))
-    if (missing.length) setHints([...hints, missing[0]])
+    if (missing.length) update(guesses, [...hints, missing[0]])
   }
 
   function newGame() {
-    setPuzzle(makePuzzle(graph!))
-    setGuesses([])
-    setHints([])
+    setFreePuzzle(makePuzzle(graph!))
+    setFreeGuesses([])
+    setFreeHints([])
   }
 
   const focus = [start, end, ...guesses, ...(lost ? optimal : [])]
@@ -130,11 +162,15 @@ export default function RouteGame() {
         <>
           <Stat label="Intentos" value={`${guesses.length}/${maxGuesses}`} />
           <Stat label="Mínimo" value={hops - 1} />
-          <Stat label="Victorias" value={wins} />
-          <Stat label="Récord" value={getBest('rutas')} />
+          {!mode.daily && <Stat label="Victorias" value={wins} />}
+          {!mode.daily && <Stat label="Récord" value={getBest('rutas')} />}
         </>
       }
     >
+      <div className="toolbar">
+        <span className="muted">{mode.daily ? 'La misma ruta para todos hoy.' : 'Rutas al azar, sin límite.'}</span>
+        <ModeSwitch value={mode.playMode} onChange={mode.setPlayMode} />
+      </div>
       <div className="route-header card">
         <span className="endpoint start">
           <img src={flagUrl(S, 160)} alt="" /> {S.name}
@@ -161,9 +197,19 @@ export default function RouteGame() {
               <span>
                 Ruta óptima: {[start, ...optimal, end].map((c) => BY_CODE.get(c)!.name).join(' → ')}
               </span>
-              <button className="btn primary" onClick={newGame}>
-                Nueva ruta →
-              </button>
+              {mode.daily ? (
+                <DailyResult
+                  title="Rutas"
+                  date={mode.date}
+                  squares={mode.record?.squares ?? ''}
+                  score={won ? `${guesses.length}/${maxGuesses}` : `X/${maxGuesses}`}
+                  onFree={() => mode.setPlayMode('libre')}
+                />
+              ) : (
+                <button className="btn primary" onClick={newGame}>
+                  Nueva ruta →
+                </button>
+              )}
             </div>
           ) : (
             <>

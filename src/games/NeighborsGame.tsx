@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CountryInput } from '../components/CountryInput'
 import { GameLayout, Loading, Stat } from '../components/GameLayout'
+import { DailyResult, ModeSwitch, useDailyPuzzle } from '../components/RoundGame'
 import { WorldMap } from '../components/WorldMap'
 import { BY_CODE, COUNTRIES, flagUrl, type Country } from '../data/countries'
 import { mainShape, useGeo } from '../data/geo'
@@ -14,41 +15,62 @@ export default function NeighborsGame() {
     () => (geo ? COUNTRIES.filter((c) => geo.byCode.has(c.code) && c.borders.length >= 2) : []),
     [geo],
   )
-  const [target, setTarget] = useState<Country | null>(null)
-  const [found, setFound] = useState<string[]>([])
-  const [misses, setMisses] = useState<string[]>([])
-  const [gaveUp, setGaveUp] = useState(false)
+  const mode = useDailyPuzzle<{ found: string[]; misses: string[]; gaveUp: boolean }>('vecinos')
+  const dailyTarget = useMemo(
+    () => (pool.length ? pick(pool.filter((c) => c.borders.length >= 3), mode.rng()) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pool, mode.date],
+  )
+  const [freeTarget, setFreeTarget] = useState<Country | null>(null)
+  const [free, setFree] = useState({ found: [] as string[], misses: [] as string[], gaveUp: false })
   const [streak, setStreak] = useState(0)
 
-  if (pool.length && !target) setTarget(pick(pool))
+  if (pool.length && !freeTarget) setFreeTarget(pick(pool))
+  const target = mode.daily ? dailyTarget : freeTarget
   if (!geo || !target) return <GameLayout title="Vecinos"><Loading /></GameLayout>
+
+  const state = mode.daily ? (mode.record?.progress ?? { found: [], misses: [], gaveUp: false }) : free
+  const { found, misses, gaveUp } = state
 
   const neighbors = target.borders.filter((b) => BY_CODE.has(b))
   const won = found.length === neighbors.length
   const lost = !won && (misses.length >= MAX_MISSES || gaveUp)
   const over = won || lost
 
+  function update(next: typeof state) {
+    const done = next.found.length === neighbors.length || next.misses.length >= MAX_MISSES || next.gaveUp
+    if (mode.daily) {
+      mode.save({
+        done,
+        score: next.found.length,
+        max: neighbors.length,
+        squares: '🟩'.repeat(next.found.length) + '🟥'.repeat(next.misses.length),
+        progress: next,
+      })
+    } else {
+      setFree(next)
+    }
+  }
+
   function guess(c: Country) {
     if (over || !target) return
     if (neighbors.includes(c.code)) {
       const next = [...found, c.code]
-      setFound(next)
-      if (next.length === neighbors.length) {
+      update({ ...state, found: next })
+      if (!mode.daily && next.length === neighbors.length) {
         setStreak(streak + 1)
         saveBest('vecinos', streak + 1)
       }
     } else {
       const next = [...misses, c.code]
-      setMisses(next)
-      if (next.length >= MAX_MISSES) setStreak(0)
+      update({ ...state, misses: next })
+      if (!mode.daily && next.length >= MAX_MISSES) setStreak(0)
     }
   }
 
   function newGame() {
-    setTarget(pick(pool.filter((c) => c.code !== target?.code)))
-    setFound([])
-    setMisses([])
-    setGaveUp(false)
+    setFreeTarget(pick(pool.filter((c) => c.code !== target?.code)))
+    setFree({ found: [], misses: [], gaveUp: false })
   }
 
   // Encuadre: el país y sus vecinos cercanos (Francia linda con Brasil, pero no queremos ver medio mundo)
@@ -75,11 +97,15 @@ export default function NeighborsGame() {
         <>
           <Stat label="Vecinos" value={`${found.length}/${neighbors.length}`} />
           <Stat label="Fallos" value={`${misses.length}/${MAX_MISSES}`} />
-          <Stat label="Racha" value={streak} />
-          <Stat label="Récord" value={getBest('vecinos')} />
+          {!mode.daily && <Stat label="Racha" value={streak} />}
+          {!mode.daily && <Stat label="Récord" value={getBest('vecinos')} />}
         </>
       }
     >
+      <div className="toolbar">
+        <span className="muted">{mode.daily ? 'El mismo país para todos hoy.' : 'Países al azar, sin límite.'}</span>
+        <ModeSwitch value={mode.playMode} onChange={mode.setPlayMode} />
+      </div>
       <div className="split wide-map">
         <div className="card map-card">
           <WorldMap features={geo.all} fit={fit} fill={fill} height={540} padding={50} zoomable />
@@ -101,14 +127,24 @@ export default function NeighborsGame() {
                     .join(', ')}
                 </span>
               )}
-              <button className="btn primary" onClick={newGame}>
-                Otro país
-              </button>
+              {mode.daily ? (
+                <DailyResult
+                  title="Vecinos"
+                  date={mode.date}
+                  squares={mode.record?.squares ?? ''}
+                  score={`${found.length}/${neighbors.length}`}
+                  onFree={() => mode.setPlayMode('libre')}
+                />
+              ) : (
+                <button className="btn primary" onClick={newGame}>
+                  Otro país
+                </button>
+              )}
             </div>
           ) : (
             <>
               <CountryInput onSubmit={guess} exclude={new Set([target.code, ...found, ...misses])} />
-              <button className="btn" onClick={() => setGaveUp(true)}>
+              <button className="btn" onClick={() => update({ ...state, gaveUp: true })}>
                 Me rindo
               </button>
             </>

@@ -16,6 +16,7 @@ const games = {
   'todas-banderas': lazy(() => import('./games/AllFlagsGame')),
   'monedas-idiomas': lazy(() => import('./games/TraitGame')),
   'reto-diario': lazy(() => import('./games/DailyGame')),
+  examen: lazy(() => import('./games/ExamGame')),
 }
 
 export default function App() {

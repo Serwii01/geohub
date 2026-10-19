@@ -172,7 +172,7 @@ function WorldMapInner({
               className={color ? 'country highlighted' : 'country'}
               style={color ? { fill: color } : undefined}
               onClick={
-                onSelect && !code.startsWith('X')
+                onSelect
                   ? () => {
                       if (!gesture.current.moved) onSelect(code)
                     }

@@ -16,10 +16,16 @@ Hub de juegos de geografía en español. React + TypeScript + Vite, mapas con d3
 | Capitales | País → capital o capital → país |
 | Monedas e idiomas | Moneda o idioma oficial de cada país |
 | Reto diario | Seis preguntas al día, iguales para todos, con racha y resultado para compartir |
+| Examen | Preguntas de todos los juegos mezcladas (10, 20 o 30) y nota sobre 10 con repaso |
 | ¿Más grande? | Más grande / más pequeño por superficie, modo racha |
 | Contrarreloj | Nombra todos los países de un continente contra el reloj |
 
 Los récords se guardan en `localStorage`.
+
+### Modos
+
+- **Libre**: partidas de 10 rondas o infinitas (con botón de terminar), con filtro por continente.
+- **Diario**: el mismo reto para todo el mundo cada día, generado con una semilla a partir de la fecha. Se juega una vez, el progreso se guarda y el resultado se puede compartir. Disponible en Siluetas, Rutas, Vecinos, Banderas, Capitales, Monedas e idiomas, Localiza y ¿Qué país es?.
 
 ## Desarrollo
 

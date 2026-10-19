@@ -1,71 +1,55 @@
-import { useEffect, useMemo, useState } from 'react'
-import { GameLayout, Loading, RegionPicker, Stat, type RegionOption } from '../components/GameLayout'
+import { useMemo, useState } from 'react'
+import { GameLayout, Loading, Stat, type RegionOption } from '../components/GameLayout'
+import { PlayBar, RoundResult, useRoundGame } from '../components/RoundGame'
 import { WorldMap } from '../components/WorldMap'
 import { BY_CODE, inRegion, type Country } from '../data/countries'
-import { regionFit, useGeo } from '../data/geo'
-import { distanceKm, formatNumber, getBest, saveBest, sample } from '../lib/utils'
+import { regionFit, useGeo, type GeoData } from '../data/geo'
+import { distanceKm, formatNumber, pick } from '../lib/utils'
 
-const ROUNDS = 10
+const MAX = 1000
+
+function poolFor(geo: GeoData, region: RegionOption) {
+  // Los microestados quedan fuera: ni con zoom se distinguen bien
+  const minArea = region === 'Mundo' ? 2000 : 300
+  return inRegion(region).filter((c) => geo.byCode.has(c.code) && c.area >= minArea)
+}
+
+export function locatePoints(clicked: Country, target: Country) {
+  return clicked.code === target.code
+    ? MAX
+    : Math.round(900 * Math.exp(-distanceKm(clicked.latlng, target.latlng) / 1500))
+}
 
 export default function LocateGame() {
   const geo = useGeo()
-  const [region, setRegion] = useState<RegionOption>('Mundo')
-  const [targets, setTargets] = useState<Country[]>([])
-  const [round, setRound] = useState(0)
-  const [clicked, setClicked] = useState<string | null>(null)
-  const [score, setScore] = useState(0)
-  const [lastPoints, setLastPoints] = useState(0)
-  const [done, setDone] = useState(false)
-  const [record, setRecord] = useState(false)
-  const bestKey = `localiza:${region}`
+  const [notice, setNotice] = useState('')
+  const game = useRoundGame<Country>({
+    gameId: 'localiza',
+    max: MAX,
+    enabled: !!geo,
+    subject: (c) => c.code,
+    make: ({ rng, used, region }) => {
+      const pool = poolFor(geo!, region)
+      const fresh = pool.filter((c) => !used.has(c.code))
+      return pick(fresh.length ? fresh : pool, rng)
+    },
+  })
+  const fit = useMemo(() => (geo ? regionFit(geo, game.region) : undefined), [geo, game.region])
 
-  const pool = useMemo(() => {
-    if (!geo) return []
-    // Los microestados quedan fuera: ni con zoom se distinguen bien
-    const minArea = region === 'Mundo' ? 2000 : 300
-    return inRegion(region).filter((c) => geo.byCode.has(c.code) && c.area >= minArea)
-  }, [geo, region])
+  if (!geo || !game.q) return <GameLayout title="Localiza"><Loading /></GameLayout>
 
-  const fit = useMemo(() => {
-    if (!geo) return undefined
-    return regionFit(geo, region)
-  }, [geo, region])
-
-  function restart() {
-    setTargets(sample(pool, ROUNDS))
-    setRound(0)
-    setClicked(null)
-    setScore(0)
-    setDone(false)
-    setRecord(false)
-  }
-
-  useEffect(() => {
-    restart()
-  }, [pool]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  if (!geo || !targets.length) return <GameLayout title="Localiza"><Loading /></GameLayout>
-
-  const target = targets[round]
+  const target = game.q
+  const clicked = game.given?.v
 
   function select(code: string) {
-    if (clicked || done) return
+    if (game.given) return
     const c = BY_CODE.get(code)
-    if (!c) return
-    setClicked(code)
-    const pts = code === target.code ? 1000 : Math.round(900 * Math.exp(-distanceKm(c.latlng, target.latlng) / 1500))
-    setLastPoints(pts)
-    setScore((s) => s + pts)
-  }
-
-  function next() {
-    if (round + 1 >= targets.length) {
-      setDone(true)
-      setRecord(saveBest(bestKey, score))
-    } else {
-      setRound(round + 1)
-      setClicked(null)
+    if (!c) {
+      setNotice('Eso es un territorio, no un país independiente. Prueba otra vez.')
+      return
     }
+    setNotice('')
+    game.answer(code, locatePoints(c, target))
   }
 
   const fill = (code: string) => {
@@ -83,45 +67,51 @@ export default function LocateGame() {
       subtitle="Pulsa el país que se pide. Usa la rueda o pellizca para hacer zoom y arrastra para moverte."
       stats={
         <>
-          <Stat label="Ronda" value={`${round + 1}/${targets.length}`} />
-          <Stat label="Puntos" value={formatNumber(score)} />
-          <Stat label="Récord" value={formatNumber(getBest(bestKey))} />
+          <Stat label="Ronda" value={`${game.index + 1}/${game.total === Infinity ? '∞' : game.total}`} />
+          <Stat label="Puntos" value={formatNumber(game.score)} />
+          {!game.daily && <Stat label="Récord" value={formatNumber(game.best)} />}
         </>
       }
     >
-      <div className="toolbar">
-        <RegionPicker value={region} onChange={setRegion} />
-      </div>
-      {done ? (
-        <div className="card result">
-          <h2>Resultado final</h2>
-          <p className="big">{formatNumber(score)} pts</p>
-          <p>de {formatNumber(targets.length * 1000)} posibles</p>
-          {record && <p className="record">¡Nuevo récord!</p>}
-          <button className="btn primary" onClick={restart}>
-            Jugar otra vez
-          </button>
-        </div>
+      <PlayBar game={game} />
+      {game.finished ? (
+        <RoundResult game={game} title="Localiza" format={(n) => formatNumber(n)} />
       ) : (
         <div className="card map-card">
           <div className="locate-bar">
             <span>
               Encuentra: <strong>{target.name}</strong>
             </span>
-            {clicked && (
+            {clickedCountry && (
               <span className={clicked === target.code ? 'ok' : 'ko'}>
                 {clicked === target.code
-                  ? `¡Correcto! +${lastPoints}`
-                  : `Eso es ${clickedCountry?.name} · a ${formatNumber(distanceKm(clickedCountry!.latlng, target.latlng))} km · +${lastPoints}`}
+                  ? `¡Correcto! +${game.given!.p}`
+                  : `Eso es ${clickedCountry.name} · a ${formatNumber(distanceKm(clickedCountry.latlng, target.latlng))} km · +${game.given!.p}`}
               </span>
             )}
-            {clicked && (
-              <button className="btn primary" onClick={next}>
-                {round + 1 >= targets.length ? 'Ver resultado' : 'Siguiente →'}
-              </button>
-            )}
+            {!clicked && notice && <span className="ko">{notice}</span>}
+            <span className="locate-actions">
+              {game.total === Infinity && game.answers.length > 0 && (
+                <button className="btn" onClick={game.finish}>
+                  Terminar
+                </button>
+              )}
+              {clicked && (
+                <button className="btn primary" onClick={game.next}>
+                  {game.index + 1 >= game.total ? 'Ver resultado' : 'Siguiente →'}
+                </button>
+              )}
+            </span>
           </div>
-          <WorldMap features={geo.all} fit={fit} fill={fill} onSelect={select} ring={clicked ? target.code : undefined} height={560} zoomable />
+          <WorldMap
+            features={geo.all}
+            fit={fit}
+            fill={fill}
+            onSelect={select}
+            ring={clicked ? target.code : undefined}
+            height={560}
+            zoomable
+          />
         </div>
       )}
     </GameLayout>

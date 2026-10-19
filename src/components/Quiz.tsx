@@ -1,91 +1,53 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { inRegion, type Country } from '../data/countries'
-import { getBest, pick, sample, saveBest, shuffle } from '../lib/utils'
-import { GameLayout, RegionPicker, Stat, type RegionOption } from './GameLayout'
-
-const ROUNDS = 10
+import { pick, sample, shuffle, type Rng } from '../lib/utils'
+import { GameLayout, Stat } from './GameLayout'
+import { PlayBar, RoundResult, useRoundGame } from './RoundGame'
 
 interface Props {
   gameId: string
   title: string
-  optionsClass?: string
   subtitle: string
   prompt: (target: Country) => ReactNode
   label: (c: Country) => ReactNode
   question?: string
   filter?: (c: Country) => boolean
   toolbar?: ReactNode
+  optionsClass?: string
+  /** Cambia cuando cambia el submodo del juego (reinicia la partida) */
   resetKey?: string
 }
 
-interface Question {
+export interface Question {
   target: Country
   options: Country[]
 }
 
-function makeQuestion(pool: Country[], used: Set<string>): Question {
+export function makeQuestion(pool: Country[], used: Set<string>, rng: Rng = Math.random): Question {
   const fresh = pool.filter((c) => !used.has(c.code))
-  const target = pick(fresh.length ? fresh : pool)
+  const target = pick(fresh.length ? fresh : pool, rng)
   // Distractores: preferentemente de la misma región para que no sea trivial
   const near = pool.filter((c) => c.code !== target.code && c.region === target.region)
   const far = pool.filter((c) => c.code !== target.code && c.region !== target.region)
-  const distractors = sample(near, 3)
-  if (distractors.length < 3) distractors.push(...sample(far, 3 - distractors.length))
-  return { target, options: shuffle([target, ...distractors]) }
+  const distractors = sample(near, 3, rng)
+  if (distractors.length < 3) distractors.push(...sample(far, 3 - distractors.length, rng))
+  return { target, options: shuffle([target, ...distractors], rng) }
 }
 
-export function Quiz({ gameId, title, optionsClass, subtitle, prompt, label, question, filter, toolbar, resetKey }: Props) {
-  const [region, setRegion] = useState<RegionOption>('Mundo')
-  const pool = inRegion(region).filter((c) => (filter ? filter(c) : true))
-  const [round, setRound] = useState(1)
-  const [score, setScore] = useState(0)
-  const [streak, setStreak] = useState(0)
-  const [used, setUsed] = useState<Set<string>>(new Set())
-  const [q, setQ] = useState<Question>(() => makeQuestion(pool, new Set()))
-  const [chosen, setChosen] = useState<string | null>(null)
-  const [done, setDone] = useState(false)
-  const [record, setRecord] = useState(false)
-  const bestKey = `${gameId}:${region}`
-
-  const restart = useCallback(() => {
-    setRound(1)
-    setScore(0)
-    setStreak(0)
-    setUsed(new Set())
-    setQ(makeQuestion(pool, new Set()))
-    setChosen(null)
-    setDone(false)
-    setRecord(false)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [region, resetKey])
-
-  useEffect(() => {
-    restart()
-  }, [restart])
-
-  function choose(c: Country) {
-    if (chosen) return
-    setChosen(c.code)
-    if (c.code === q.target.code) {
-      setScore((s) => s + 1)
-      setStreak((s) => s + 1)
-    } else {
-      setStreak(0)
-    }
-  }
-
-  function next() {
-    if (round >= ROUNDS) {
-      setDone(true)
-      setRecord(saveBest(bestKey, score))
-      return
-    }
-    const u = new Set(used).add(q.target.code)
-    setUsed(u)
-    setQ(makeQuestion(pool, u))
-    setChosen(null)
-    setRound((r) => r + 1)
-  }
+export function Quiz({ gameId, title, subtitle, prompt, label, question, filter, toolbar, optionsClass, resetKey }: Props) {
+  const game = useRoundGame<Question>({
+    gameId,
+    max: 1,
+    deps: [resetKey],
+    subject: (q) => q.target.code,
+    make: ({ rng, used, region }) =>
+      makeQuestion(
+        inRegion(region).filter((c) => (filter ? filter(c) : true)),
+        used,
+        rng,
+      ),
+  })
+  const { q, given } = game
 
   return (
     <GameLayout
@@ -93,54 +55,51 @@ export function Quiz({ gameId, title, optionsClass, subtitle, prompt, label, que
       subtitle={subtitle}
       stats={
         <>
-          <Stat label="Ronda" value={`${Math.min(round, ROUNDS)}/${ROUNDS}`} />
-          <Stat label="Aciertos" value={score} />
-          <Stat label="Racha" value={streak} />
-          <Stat label="Récord" value={getBest(bestKey)} />
+          <Stat label="Ronda" value={`${game.index + 1}/${game.total === Infinity ? '∞' : game.total}`} />
+          <Stat label="Aciertos" value={game.score} />
+          <Stat label="Racha" value={game.streak} />
+          {!game.daily && <Stat label="Récord" value={game.best} />}
         </>
       }
     >
-      <div className="toolbar">
-        <RegionPicker value={region} onChange={setRegion} />
-        {toolbar}
-      </div>
+      <PlayBar game={game}>{toolbar}</PlayBar>
 
-      {done ? (
-        <div className="card result">
-          <h2>{score >= 8 ? 'Impecable' : score >= 5 ? 'Bien jugado' : 'Sigue practicando'}</h2>
-          <p className="big">
-            {score} / {ROUNDS}
-          </p>
-          {record && <p className="record">¡Nuevo récord!</p>}
-          <button className="btn primary" onClick={restart}>
-            Jugar otra vez
-          </button>
-        </div>
+      {game.finished ? (
+        <RoundResult game={game} title={title} />
       ) : (
-        <div className="card quiz">
-          {question && <p className="question">{question}</p>}
-          <div className="prompt">{prompt(q.target)}</div>
-          <div className={`options ${optionsClass ?? ""}`}>
-            {q.options.map((c) => {
-              let cls = 'option'
-              if (chosen) {
-                if (c.code === q.target.code) cls += ' correct'
-                else if (c.code === chosen) cls += ' wrong'
-                else cls += ' dim'
-              }
-              return (
-                <button key={c.code} className={cls} onClick={() => choose(c)}>
-                  {label(c)}
+        q && (
+          <div className="card quiz">
+            {question && <p className="question">{question}</p>}
+            <div className="prompt">{prompt(q.target)}</div>
+            <div className={`options ${optionsClass ?? ''}`}>
+              {q.options.map((c) => {
+                let cls = 'option'
+                if (given) {
+                  if (c.code === q.target.code) cls += ' correct'
+                  else if (c.code === given.v) cls += ' wrong'
+                  else cls += ' dim'
+                }
+                return (
+                  <button key={c.code} className={cls} onClick={() => game.answer(c.code, c.code === q.target.code ? 1 : 0)}>
+                    {label(c)}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="quiz-actions">
+              {given && (
+                <button className="btn primary" onClick={game.next} autoFocus>
+                  {game.index + 1 >= game.total ? 'Ver resultado' : 'Siguiente →'}
                 </button>
-              )
-            })}
+              )}
+              {game.total === Infinity && game.answers.length > 0 && (
+                <button className="btn" onClick={game.finish}>
+                  Terminar
+                </button>
+              )}
+            </div>
           </div>
-          {chosen && (
-            <button className="btn primary next" onClick={next} autoFocus>
-              {round >= ROUNDS ? 'Ver resultado' : 'Siguiente →'}
-            </button>
-          )}
-        </div>
+        )
       )}
     </GameLayout>
   )

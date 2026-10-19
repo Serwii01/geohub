@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { GameLayout, Loading, RegionPicker, Stat, type RegionOption } from '../components/GameLayout'
 import { WorldMap } from '../components/WorldMap'
 import { findCountry, inRegion } from '../data/countries'
-import { mainShape, useGeo } from '../data/geo'
+import { regionFit, useGeo } from '../data/geo'
 import { getBest, saveBest } from '../lib/utils'
 
 const TIME: Record<RegionOption, number> = {
@@ -45,12 +45,7 @@ export default function NameAllGame() {
     if (status === 'playing' && (left <= 0 || found.length === pool.length)) finish()
   }) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const fit = useMemo(() => {
-    if (!geo || region === 'Mundo') return undefined
-    return pool
-      .filter((c) => c.code !== 'RUS' && geo.byCode.has(c.code))
-      .map((c) => mainShape(geo.byCode.get(c.code)!))
-  }, [geo, pool, region])
+  const fit = useMemo(() => (geo ? regionFit(geo, region) : undefined), [geo, region])
 
   function finish() {
     setStatus('over')

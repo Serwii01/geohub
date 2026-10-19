@@ -1,10 +1,11 @@
 import { useMemo, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { SiteHeader } from './components/GameLayout'
 import { Silhouette } from './components/Silhouette'
 import { WorldMap } from './components/WorldMap'
 import { BY_CODE, COUNTRIES, flagUrl } from './data/countries'
 import { mainShape, regionFit, useGeo, type GeoData } from './data/geo'
+import { DAILY_GAMES, dailyKey, load, store, todayKey, type DailyRecord } from './lib/daily'
 import { getBest, pick, sample } from './lib/utils'
 
 interface GameInfo {
@@ -13,6 +14,8 @@ interface GameInfo {
   desc: string
   best: string
   unit: string
+  /** El examen guarda la nota ×10 */
+  scale?: number
   preview: (geo: GeoData | null) => ReactNode
 }
 
@@ -38,6 +41,20 @@ function useGames(): GameInfo[] {
   const europeFound = useMemo(() => new Set(sample(COUNTRIES.filter((c) => c.region === 'Europa'), 26).map((c) => c.code)), [])
 
   return [
+    {
+      path: 'examen',
+      title: 'Examen',
+      desc: 'Preguntas de todos los juegos mezcladas y una nota del 0 al 10.',
+      best: 'examen:20:Mundo',
+      unit: '',
+      scale: 10,
+      preview: () => (
+        <div className="preview-grade">
+          <span className="preview-grade-num">8,5</span>
+          <span>Notable</span>
+        </div>
+      ),
+    },
     {
       path: 'rutas',
       title: 'Rutas',
@@ -183,28 +200,43 @@ function useGames(): GameInfo[] {
   ]
 }
 
-/** Estado del reto de hoy, leído de lo que guarda la página del reto */
+/** Reto diario y diarios de cada juego, con lo que ya has hecho hoy */
 function DailyBanner() {
-  const now = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const key = `geohub:daily:${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-  let answered = 0
-  try {
-    answered = (JSON.parse(localStorage.getItem(key) ?? '[]') as string[]).length
-  } catch {
-    /* sin almacenamiento */
-  }
-  const long = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+  const navigate = useNavigate()
+  const answered = load<string[]>(`geohub:daily:${todayKey()}`, []).length
+  const long = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
   const date = long.charAt(0).toUpperCase() + long.slice(1)
+
+  function openDaily(id: string, path: string) {
+    // Abre el juego directamente en su modo diario
+    store(`geohub:modo:${id.split('-')[0]}`, 'diario')
+    navigate(path)
+  }
+
   return (
-    <Link to="/reto-diario" className="daily-banner">
-      <div>
+    <section className="daily-banner">
+      <div className="daily-main">
         <span className="daily-date">{date}</span>
-        <h2>Reto diario</h2>
-        <p>Bandera, silueta, capital, superficie, moneda e idioma: seis preguntas, las mismas para todos.</p>
+        <h2>Diarios</h2>
+        <p>Los mismos retos para todo el mundo, una vez al día. Compara tu resultado.</p>
+        <Link to="/reto-diario" className="btn primary">
+          {answered >= 6 ? 'Reto diario: ver resultado' : answered > 0 ? 'Continuar el reto diario' : 'Jugar el reto diario'}
+        </Link>
       </div>
-      <span className="btn primary">{answered >= 6 ? 'Ver tu resultado' : answered > 0 ? 'Continuar' : 'Jugar el reto de hoy'}</span>
-    </Link>
+      <ul className="daily-list">
+        {DAILY_GAMES.map((g) => {
+          const rec = load<DailyRecord | null>(dailyKey(g.id), null)
+          return (
+            <li key={g.id}>
+              <button onClick={() => openDaily(g.id, g.path)} className={rec?.done ? 'done' : rec ? 'started' : ''}>
+                <span>{g.title}</span>
+                <span className="daily-state">{rec?.done ? rec.squares || 'Hecho' : rec ? 'A medias' : 'Pendiente'}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </section>
   )
 }
 
@@ -236,7 +268,7 @@ export default function Home() {
                   <p>{g.desc}</p>
                   {best > 0 && (
                     <span className="card-best">
-                      Tu récord: {best.toLocaleString('es-ES')}
+                      Tu récord: {(best / (g.scale ?? 1)).toLocaleString('es-ES')}
                       {g.unit}
                     </span>
                   )}

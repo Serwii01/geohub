@@ -14,6 +14,8 @@ Hub de juegos de geografía en español. React + TypeScript + Vite, mapas con d3
 | ¿Qué país es? | Un país marcado en el mapa: escribe cuál es |
 | Vecinos | Nombra todos los países con los que hace frontera |
 | Capitales | País → capital o capital → país |
+| Monedas e idiomas | Moneda o idioma oficial de cada país |
+| Reto diario | Seis preguntas al día, iguales para todos, con racha y resultado para compartir |
 | ¿Más grande? | Más grande / más pequeño por superficie, modo racha |
 | Contrarreloj | Nombra todos los países de un continente contra el reloj |
 

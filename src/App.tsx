@@ -14,6 +14,8 @@ const games = {
   vecinos: lazy(() => import('./games/NeighborsGame')),
   'que-pais': lazy(() => import('./games/MysteryGame')),
   'todas-banderas': lazy(() => import('./games/AllFlagsGame')),
+  'monedas-idiomas': lazy(() => import('./games/TraitGame')),
+  'reto-diario': lazy(() => import('./games/DailyGame')),
 }
 
 export default function App() {

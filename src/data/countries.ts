@@ -16,6 +16,9 @@ export interface Country {
   latlng: [number, number]
   borders: string[]
   area: number
+  /** Monedas y lenguas oficiales, ya en español */
+  currencies: string[]
+  languages: string[]
   /** Nombres aceptados como respuesta, ya normalizados */
   aliases: string[]
 }
@@ -119,9 +122,12 @@ interface RawCountry {
   latlng: [number, number]
   borders: string[]
   area: number
+  /** Ya traducidos al español por scripts/gen-countries.mjs */
+  currencies: string[]
+  languages: string[]
 }
 
-export const COUNTRIES: Country[] = (raw as RawCountry[])
+export const COUNTRIES: Country[] = (raw as unknown as RawCountry[])
   .map((c) => {
     const name = NAME_OVERRIDES[c.cca3] ?? c.spa?.common ?? c.name.common
     const rawCapital = c.capital[0] ?? ''
@@ -144,6 +150,8 @@ export const COUNTRIES: Country[] = (raw as RawCountry[])
       latlng: c.latlng,
       borders: c.borders,
       area: c.area,
+      currencies: c.currencies,
+      languages: c.languages,
       aliases: [...new Set(names.map(normalize))],
     }
   })

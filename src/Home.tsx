@@ -124,6 +124,22 @@ function useGames(): GameInfo[] {
       },
     },
     {
+      path: 'monedas-idiomas',
+      title: 'Monedas e idiomas',
+      desc: 'Qué moneda se usa y qué idioma se habla en cada país.',
+      best: 'rasgos-moneda:Mundo',
+      unit: '/10',
+      preview: () => (
+        <div className="preview-words">
+          <span>Yen</span>
+          <span>Florín húngaro</span>
+          <span>Suajili</span>
+          <span>Rupia</span>
+          <span>Neerlandés</span>
+        </div>
+      ),
+    },
+    {
       path: 'capitales',
       title: 'Capitales',
       desc: 'De país a capital o de capital a país.',
@@ -167,6 +183,31 @@ function useGames(): GameInfo[] {
   ]
 }
 
+/** Estado del reto de hoy, leído de lo que guarda la página del reto */
+function DailyBanner() {
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const key = `geohub:daily:${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  let answered = 0
+  try {
+    answered = (JSON.parse(localStorage.getItem(key) ?? '[]') as string[]).length
+  } catch {
+    /* sin almacenamiento */
+  }
+  const long = now.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })
+  const date = long.charAt(0).toUpperCase() + long.slice(1)
+  return (
+    <Link to="/reto-diario" className="daily-banner">
+      <div>
+        <span className="daily-date">{date}</span>
+        <h2>Reto diario</h2>
+        <p>Bandera, silueta, capital, superficie, moneda e idioma: seis preguntas, las mismas para todos.</p>
+      </div>
+      <span className="btn primary">{answered >= 6 ? 'Ver tu resultado' : answered > 0 ? 'Continuar' : 'Jugar el reto de hoy'}</span>
+    </Link>
+  )
+}
+
 export default function Home() {
   const geo = useGeo()
   const games = useGames()
@@ -181,6 +222,8 @@ export default function Home() {
             {games.length} juegos con {COUNTRIES.length} países. Partidas de un par de minutos, sin registrarse.
           </p>
         </div>
+
+        <DailyBanner />
 
         <section className="cards">
           {games.map((g) => {

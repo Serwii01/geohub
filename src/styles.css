@@ -906,3 +906,105 @@ img {
   fill: var(--ink);
   stroke: none;
 }
+
+/* ---------- Todas las banderas ---------- */
+.preview-wall {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  padding: 12px;
+  width: 100%;
+  height: 100%;
+  background: var(--surface-2);
+}
+.preview-wall img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08);
+}
+.flags-bar {
+  position: sticky;
+  top: 8px;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px;
+  box-shadow: 0 6px 20px rgb(27 34 48 / 0.08);
+}
+.flags-bar .progress {
+  grid-column: 1 / -1;
+}
+.flags-result {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.flags-result strong {
+  font-size: 1.2rem;
+}
+.flags-result .btn {
+  margin-left: auto;
+}
+.flag-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+}
+.flag-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  scroll-margin: 140px;
+}
+.flag-tile img {
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+  border-radius: 3px;
+  box-shadow: 0 0 0 1px rgb(0 0 0 / 0.08);
+}
+.flag-tile span {
+  min-height: 2.5em;
+  font-size: 0.8rem;
+  line-height: 1.25;
+  text-align: center;
+}
+.flag-tile:hover {
+  border-color: var(--line-strong);
+}
+.flag-tile.current {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary);
+}
+.flag-tile.found {
+  background: #e7f6ee;
+  border-color: #b5e0c8;
+  cursor: default;
+}
+.flag-tile.missed {
+  background: #fdecee;
+  border-color: #f4bcc1;
+  cursor: default;
+}
+@media (max-width: 600px) {
+  .flags-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+  .flags-bar .country-input {
+    grid-column: 1 / -1;
+  }
+  .flag-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}

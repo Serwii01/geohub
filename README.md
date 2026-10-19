@@ -9,6 +9,7 @@ Hub de juegos de geografía en español. React + TypeScript + Vite, mapas con d3
 | Rutas | Estilo travle.earth: conecta dos países por tierra nombrando los intermedios |
 | Siluetas | Estilo Worldle: adivina por la forma, con distancia, dirección y % de cercanía |
 | Banderas | Bandera → país o país → bandera, con filtro por continente |
+| Todas las banderas | Las 194 banderas del mundo en 15 minutos |
 | Localiza | Pulsa el país en el mapa (con zoom y arrastre); puntos según la distancia |
 | ¿Qué país es? | Un país marcado en el mapa: escribe cuál es |
 | Vecinos | Nombra todos los países con los que hace frontera |

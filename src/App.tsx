@@ -13,6 +13,7 @@ const games = {
   contrarreloj: lazy(() => import('./games/NameAllGame')),
   vecinos: lazy(() => import('./games/NeighborsGame')),
   'que-pais': lazy(() => import('./games/MysteryGame')),
+  'todas-banderas': lazy(() => import('./games/AllFlagsGame')),
 }
 
 export default function App() {

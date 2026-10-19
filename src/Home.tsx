@@ -31,6 +31,7 @@ function fitOf(geo: GeoData | null, codes: string[]) {
 function useGames(): GameInfo[] {
   // Elementos aleatorios fijados al montar para que no cambien en cada render
   const flags = useMemo(() => sample(COUNTRIES, 6), [])
+  const wall = useMemo(() => sample(COUNTRIES, 24), [])
   const shape = useMemo(() => pick(RECOGNIZABLE), [])
   const capital = useMemo(() => pick(COUNTRIES.filter((c) => c.capital.length < 12)), [])
   const pair = useMemo(() => sample(COUNTRIES.filter((c) => c.area > 50000), 2), [])
@@ -68,6 +69,20 @@ function useGames(): GameInfo[] {
       preview: () => (
         <div className="preview-flags">
           {flags.map((c) => (
+            <img key={c.code} src={flagUrl(c, 160)} alt="" loading="lazy" />
+          ))}
+        </div>
+      ),
+    },
+    {
+      path: 'todas-banderas',
+      title: 'Todas las banderas',
+      desc: `Las ${COUNTRIES.length} banderas del mundo en 15 minutos.`,
+      best: 'todas-banderas',
+      unit: ' banderas',
+      preview: () => (
+        <div className="preview-wall">
+          {wall.map((c) => (
             <img key={c.code} src={flagUrl(c, 160)} alt="" loading="lazy" />
           ))}
         </div>

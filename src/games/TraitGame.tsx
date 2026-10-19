@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { GameLayout, Stat } from '../components/GameLayout'
 import { PlayBar, RoundResult, useRoundGame } from '../components/RoundGame'
 import { flagUrl, inRegion, type Country } from '../data/countries'
+import { distractorSource, type Difficulty } from '../lib/difficulty'
+import { useGameKeys } from '../lib/keys'
 import { pick, sample, shuffle } from '../lib/utils'
 
 type Mode = 'moneda' | 'idioma'
@@ -26,13 +28,15 @@ export function makeTraitQuestion(
   values: (c: Country) => string[],
   used: Set<string>,
   rng: () => number = Math.random,
+  difficulty: Difficulty = 'normal',
 ): Question {
   const candidates = pool.filter((c) => values(c).length > 0 && !used.has(c.code))
   const target = pick(candidates.length ? candidates : pool.filter((c) => values(c).length), rng)
   const own = new Set(values(target))
   const answer = pick([...own], rng)
   const others = (list: Country[]) => [...new Set(list.flatMap(values))].filter((v) => !own.has(v))
-  const near = others(pool.filter((c) => c.region === target.region))
+  // Dificultad: de dónde salen las opciones falsas (otros continentes, el mismo o los vecinos)
+  const near = others(distractorSource(target, pool, difficulty, 4))
   const options = sample(near, 3, rng)
   if (options.length < 3) {
     const far = others(pool).filter((v) => !options.includes(v))
@@ -48,11 +52,23 @@ export default function TraitGame() {
     gameId: `rasgos-${mode}`,
     max: 1,
     deps: [mode],
+    withDifficulty: true,
     subject: (q) => q.target.code,
-    make: ({ rng, used, region }) => makeTraitQuestion(inRegion(region), values, used, rng),
+    make: ({ rng, used, region, difficulty }) => makeTraitQuestion(inRegion(region), values, used, rng, difficulty),
   })
   const { q, given } = game
   const others = q && given ? values(q.target).filter((v) => v !== q.answer) : []
+
+  useGameKeys({
+    onOption:
+      q && !given && !game.finished
+        ? (i) => {
+            const v = q.options[i]
+            if (v) game.answer(v, v === q.answer ? 1 : 0)
+          }
+        : undefined,
+    onNext: given && !game.finished ? game.next : undefined,
+  })
 
   return (
     <GameLayout
@@ -89,11 +105,12 @@ export default function TraitGame() {
               </div>
             </div>
             <div className="options">
-              {q.options.map((v) => {
+              {q.options.map((v, i) => {
                 let cls = 'option'
                 if (given) cls += v === q.answer ? ' correct' : v === given.v ? ' wrong' : ' dim'
                 return (
                   <button key={v} className={cls} onClick={() => game.answer(v, v === q.answer ? 1 : 0)}>
+                    <kbd>{i + 1}</kbd>
                     {v}
                   </button>
                 )
@@ -102,8 +119,8 @@ export default function TraitGame() {
             {others.length > 0 && <p className="muted">También: {others.join(', ')}</p>}
             <div className="quiz-actions">
               {given && (
-                <button className="btn primary" onClick={game.next} autoFocus>
-                  {game.index + 1 >= game.total ? 'Ver resultado' : 'Siguiente →'}
+                <button className="btn primary" onClick={game.next}>
+                  {game.index + 1 >= game.total ? 'Ver resultado' : 'Siguiente →'} <kbd>Intro</kbd>
                 </button>
               )}
               {game.total === Infinity && game.answers.length > 0 && (

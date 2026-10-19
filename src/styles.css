@@ -1381,3 +1381,50 @@ img {
   color: var(--good);
   line-height: 1;
 }
+
+/* ---------- Atajos de teclado ---------- */
+kbd {
+  display: inline-block;
+  min-width: 1.5em;
+  padding: 0 5px;
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.5;
+  text-align: center;
+}
+.option kbd {
+  margin-right: 10px;
+}
+.flag-options .option {
+  position: relative;
+}
+.flag-options .option kbd {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  margin: 0;
+}
+.btn kbd {
+  margin-left: 4px;
+}
+.btn.primary kbd {
+  background: rgb(255 255 255 / 0.15);
+  border-color: rgb(255 255 255 / 0.35);
+  color: #fff;
+}
+/* En pantallas táctiles no hay teclado: se ocultan las pistas */
+@media (hover: none) {
+  kbd {
+    display: none;
+  }
+}
+.muted.small {
+  font-size: 0.85rem;
+  margin-top: 8px;
+}

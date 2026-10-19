@@ -5,6 +5,9 @@ import { Silhouette } from '../components/Silhouette'
 import { WorldMap } from '../components/WorldMap'
 import { BY_CODE, flagUrl, inRegion, REGIONS, type Country } from '../data/countries'
 import { regionFit, useGeo, type GeoData } from '../data/geo'
+import { usePref } from '../lib/daily'
+import { DIFFICULTIES, distractorCountries, type Difficulty } from '../lib/difficulty'
+import { useGameKeys } from '../lib/keys'
 import { formatNumber, getBest, pick, sample, saveBest, shuffle, type Rng } from '../lib/utils'
 import { makeTraitQuestion } from './TraitGame'
 
@@ -67,16 +70,16 @@ function fresh(list: Country[], used: Set<string>, rng: Rng) {
 
 const named = (list: Country[]): Option[] => list.map((c) => ({ value: c.code, text: c.name }))
 
-function build(kind: Kind, pool: Country[], geo: GeoData, used: Set<string>, rng: Rng): ExamQuestion {
+function build(kind: Kind, pool: Country[], geo: GeoData, used: Set<string>, rng: Rng, difficulty: Difficulty): ExamQuestion {
   const withShape = pool.filter((c) => geo.byCode.has(c.code))
   switch (kind) {
     case 'bandera': {
-      const q = makeQuestion(pool, used, rng)
+      const q = makeQuestion(pool, used, rng, difficulty)
       used.add(q.target.code)
       return { kind, text: '¿De qué país es esta bandera?', subject: q.target, options: named(q.options), answer: q.target.code, solution: q.target.name }
     }
     case 'bandera-inv': {
-      const q = makeQuestion(pool, used, rng)
+      const q = makeQuestion(pool, used, rng, difficulty)
       used.add(q.target.code)
       return {
         kind,
@@ -88,12 +91,12 @@ function build(kind: Kind, pool: Country[], geo: GeoData, used: Set<string>, rng
       }
     }
     case 'silueta': {
-      const q = makeQuestion(withShape.filter((c) => c.area >= 20000), used, rng)
+      const q = makeQuestion(withShape.filter((c) => c.area >= 20000), used, rng, difficulty)
       used.add(q.target.code)
       return { kind, text: '¿Qué país tiene esta forma?', subject: q.target, options: named(q.options), answer: q.target.code, solution: q.target.name }
     }
     case 'capital': {
-      const q = makeQuestion(pool.filter((c) => c.capital), used, rng)
+      const q = makeQuestion(pool.filter((c) => c.capital), used, rng, difficulty)
       used.add(q.target.code)
       return {
         kind,
@@ -105,14 +108,14 @@ function build(kind: Kind, pool: Country[], geo: GeoData, used: Set<string>, rng
       }
     }
     case 'capital-inv': {
-      const q = makeQuestion(pool.filter((c) => c.capital), used, rng)
+      const q = makeQuestion(pool.filter((c) => c.capital), used, rng, difficulty)
       used.add(q.target.code)
       return { kind, text: `¿De qué país es capital ${q.target.capital}?`, subject: q.target, options: named(q.options), answer: q.target.code, solution: q.target.name }
     }
     case 'moneda':
     case 'idioma': {
       const values = kind === 'moneda' ? (c: Country) => c.currencies : (c: Country) => c.languages
-      const q = makeTraitQuestion(pool, values, used, rng)
+      const q = makeTraitQuestion(pool, values, used, rng, difficulty)
       used.add(q.target.code)
       return {
         kind,
@@ -126,7 +129,12 @@ function build(kind: Kind, pool: Country[], geo: GeoData, used: Set<string>, rng
     case 'superficie': {
       const big = pool.filter((c) => c.area >= 1000)
       const a = fresh(big, used, rng)
-      const others = big.filter((c) => c.code !== a.code && Math.abs(c.area - a.area) / Math.max(c.area, a.area) > 0.15)
+      // Cuanto más difícil, más parecidas las superficies
+      const [minGap, maxGap] = difficulty === 'facil' ? [0.6, 1] : difficulty === 'dificil' ? [0.05, 0.3] : [0.15, 1]
+      const others = big.filter((c) => {
+        const gap = Math.abs(c.area - a.area) / Math.max(c.area, a.area)
+        return c.code !== a.code && gap > minGap && gap <= maxGap
+      })
       const b = fresh(others.length ? others : big.filter((c) => c.code !== a.code), used, rng)
       const winner = a.area > b.area ? a : b
       return {
@@ -139,7 +147,7 @@ function build(kind: Kind, pool: Country[], geo: GeoData, used: Set<string>, rng
       }
     }
     case 'mapa': {
-      const q = makeQuestion(withShape.filter((c) => c.area >= 300), used, rng)
+      const q = makeQuestion(withShape.filter((c) => c.area >= 300), used, rng, difficulty)
       used.add(q.target.code)
       return { kind, text: '¿Qué país está marcado en el mapa?', subject: q.target, options: named(q.options), answer: q.target.code, solution: q.target.name }
     }
@@ -152,9 +160,10 @@ function build(kind: Kind, pool: Country[], geo: GeoData, used: Set<string>, rng
       const c = fresh(candidates, used, rng)
       const neighbors = c.borders.filter((b) => BY_CODE.has(b))
       const answer = pick(neighbors, rng)
-      const wrong = sample(
-        pool.filter((x) => x.code !== c.code && !neighbors.includes(x.code) && x.region === c.region),
-        3,
+      const wrong = distractorCountries(
+        c,
+        pool.filter((x) => !neighbors.includes(x.code)),
+        difficulty,
         rng,
       )
       return {
@@ -185,7 +194,7 @@ function build(kind: Kind, pool: Country[], geo: GeoData, used: Set<string>, rng
   }
 }
 
-function buildExam(n: number, region: RegionOption, geo: GeoData): ExamQuestion[] {
+function buildExam(n: number, region: RegionOption, geo: GeoData, difficulty: Difficulty): ExamQuestion[] {
   const rng = Math.random
   const pool = inRegion(region)
   // Con un continente concreto, preguntar por el continente no tiene sentido
@@ -193,7 +202,7 @@ function buildExam(n: number, region: RegionOption, geo: GeoData): ExamQuestion[
   const order: Kind[] = []
   while (order.length < n) order.push(...shuffle(kinds, rng))
   const used = new Set<string>()
-  return order.slice(0, n).map((k) => build(k, pool, geo, used, rng))
+  return order.slice(0, n).map((k) => build(k, pool, geo, used, rng, difficulty))
 }
 
 // ---------- Nota ----------
@@ -215,16 +224,17 @@ export default function ExamGame() {
   const geo = useGeo()
   const [size, setSize] = useState<(typeof SIZES)[number]>(20)
   const [region, setRegion] = useState<RegionOption>('Mundo')
+  const [difficulty, setDifficulty] = usePref<Difficulty>('geohub:dificultad', 'normal')
   const [questions, setQuestions] = useState<ExamQuestion[] | null>(null)
   const [answers, setAnswers] = useState<string[]>([])
   const [index, setIndex] = useState(0)
   const [finished, setFinished] = useState(false)
   const [record, setRecord] = useState(false)
-  const bestKey = `examen:${size}:${region}`
+  const bestKey = `examen:${size}:${region}${difficulty === 'normal' ? '' : ':' + difficulty}`
 
   function start() {
     if (!geo) return
-    setQuestions(buildExam(size, region, geo))
+    setQuestions(buildExam(size, region, geo, difficulty))
     setAnswers([])
     setIndex(0)
     setFinished(false)
@@ -239,6 +249,34 @@ export default function ExamGame() {
     // Se guarda la nota ×10 para no perder el decimal
     setRecord(saveBest(bestKey, Math.round(grade * 10)))
   }
+
+  // Pregunta en curso (si la hay), para los atajos de teclado
+  const cur = questions && !finished ? questions[index] : undefined
+  const curGiven = answers[index]
+
+  function answer(v: string) {
+    if (!questions || curGiven !== undefined) return
+    const next = [...answers]
+    next[index] = v
+    setAnswers(next)
+  }
+
+  function goNext() {
+    if (!questions) return
+    if (index + 1 >= questions.length) finish()
+    else setIndex(index + 1)
+  }
+
+  useGameKeys({
+    onOption:
+      cur && curGiven === undefined && cur.options.length
+        ? (i) => {
+            const o = cur.options[i]
+            if (o) answer(o.value)
+          }
+        : undefined,
+    onNext: cur && curGiven !== undefined ? goNext : undefined,
+  })
 
   if (!geo) return <GameLayout title="Examen"><Loading /></GameLayout>
 
@@ -257,6 +295,20 @@ export default function ExamGame() {
                 </button>
               ))}
             </div>
+          </div>
+          <div>
+            <h2>Dificultad</h2>
+            <div className="chips">
+              {DIFFICULTIES.map((d) => (
+                <button key={d.value} className={'chip ' + (difficulty === d.value ? 'on' : '')} onClick={() => setDifficulty(d.value)}>
+                  {d.label}
+                </button>
+              ))}
+            </div>
+            <p className="muted small">
+              Fácil: opciones de otros continentes. Normal: del mismo continente. Difícil: países vecinos, que se
+              confunden más.
+            </p>
           </div>
           <div>
             <h2>Zona</h2>
@@ -352,13 +404,6 @@ export default function ExamGame() {
   const q = questions[index]
   const given = answers[index]
 
-  function answer(v: string) {
-    if (given !== undefined) return
-    const next = [...answers]
-    next[index] = v
-    setAnswers(next)
-  }
-
   return (
     <GameLayout
       title="Examen"
@@ -378,11 +423,12 @@ export default function ExamGame() {
         <Prompt q={q} geo={geo} region={region} given={given} onClick={answer} />
         {q.options.length > 0 && (
           <div className={`options ${q.options.every((o) => o.flag && !o.text) ? 'flag-options' : ''}`}>
-            {q.options.map((o) => {
+            {q.options.map((o, i) => {
               let cls = 'option'
               if (given !== undefined) cls += o.value === q.answer ? ' correct' : o.value === given ? ' wrong' : ' dim'
               return (
                 <button key={o.value} className={cls} onClick={() => answer(o.value)}>
+                  <kbd>{i + 1}</kbd>
                   {o.flag && !o.text && <img src={flagUrl(o.flag, 320)} alt="" />}
                   {o.flag && o.text && (
                     <span className="daily-versus">
@@ -403,8 +449,8 @@ export default function ExamGame() {
         )}
         <div className="quiz-actions">
           {given !== undefined && (
-            <button className="btn primary" autoFocus onClick={() => (index + 1 >= questions.length ? finish() : setIndex(index + 1))}>
-              {index + 1 >= questions.length ? 'Ver nota' : 'Siguiente →'}
+            <button className="btn primary" onClick={goNext}>
+              {index + 1 >= questions.length ? 'Ver nota' : 'Siguiente →'} <kbd>Intro</kbd>
             </button>
           )}
         </div>

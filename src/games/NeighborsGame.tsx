@@ -5,6 +5,7 @@ import { DailyResult, ModeSwitch, useDailyPuzzle } from '../components/RoundGame
 import { WorldMap } from '../components/WorldMap'
 import { BY_CODE, COUNTRIES, flagUrl, type Country } from '../data/countries'
 import { mainShape, useGeo } from '../data/geo'
+import { useGameKeys } from '../lib/keys'
 import { distanceKm, getBest, pick, saveBest } from '../lib/utils'
 
 const MAX_MISSES = 3
@@ -27,6 +28,13 @@ export default function NeighborsGame() {
 
   if (pool.length && !freeTarget) setFreeTarget(pick(pool))
   const target = mode.daily ? dailyTarget : freeTarget
+  const current = mode.daily ? (mode.record?.progress ?? { found: [], misses: [], gaveUp: false }) : free
+  const finishedRound =
+    !!target &&
+    (current.found.length === target.borders.filter((b) => BY_CODE.has(b)).length ||
+      current.misses.length >= MAX_MISSES ||
+      current.gaveUp)
+  useGameKeys({ onNext: finishedRound && !mode.daily ? () => newGame() : undefined })
   if (!geo || !target) return <GameLayout title="Vecinos"><Loading /></GameLayout>
 
   const state = mode.daily ? (mode.record?.progress ?? { found: [], misses: [], gaveUp: false }) : free
@@ -137,13 +145,13 @@ export default function NeighborsGame() {
                 />
               ) : (
                 <button className="btn primary" onClick={newGame}>
-                  Otro país
+                  Otro país <kbd>Intro</kbd>
                 </button>
               )}
             </div>
           ) : (
             <>
-              <CountryInput onSubmit={guess} exclude={new Set([target.code, ...found, ...misses])} />
+              <CountryInput onSubmit={guess} exclude={new Set([target.code, ...found, ...misses])} autoFocus />
               <button className="btn" onClick={() => update({ ...state, gaveUp: true })}>
                 Me rindo
               </button>

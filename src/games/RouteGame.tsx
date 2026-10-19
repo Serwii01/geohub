@@ -5,6 +5,7 @@ import { DailyResult, ModeSwitch, useDailyPuzzle } from '../components/RoundGame
 import { WorldMap } from '../components/WorldMap'
 import { BY_CODE, COUNTRIES, flagUrl } from '../data/countries'
 import { mainShape, useGeo, type GeoData } from '../data/geo'
+import { useGameKeys } from '../lib/keys'
 import { getBest, pick, saveBest, type Rng } from '../lib/utils'
 
 type Graph = Map<string, string[]>
@@ -75,6 +76,12 @@ export default function RouteGame() {
 
   if (graph && !freePuzzle) setFreePuzzle(makePuzzle(graph))
   const puzzle = mode.daily ? dailyPuzzle : freePuzzle
+  const roundOver = (() => {
+    if (!graph || !puzzle) return false
+    const g = mode.daily ? (mode.record?.progress?.guesses ?? []) : freeGuesses
+    return bfs(graph, puzzle.start, new Set([puzzle.start, puzzle.end, ...g])).dist.has(puzzle.end) || g.length >= puzzle.hops + 3
+  })()
+  useGameKeys({ onNext: roundOver && !mode.daily ? () => newGame() : undefined })
   if (!geo || !graph || !puzzle) return <GameLayout title="Rutas"><Loading /></GameLayout>
 
   const guesses = mode.daily ? (mode.record?.progress?.guesses ?? []) : freeGuesses
@@ -207,13 +214,13 @@ export default function RouteGame() {
                 />
               ) : (
                 <button className="btn primary" onClick={newGame}>
-                  Nueva ruta →
+                  Nueva ruta → <kbd>Intro</kbd>
                 </button>
               )}
             </div>
           ) : (
             <>
-              <CountryInput onSubmit={(c) => guess(c.code)} exclude={allowed} />
+              <CountryInput onSubmit={(c) => guess(c.code)} exclude={allowed} autoFocus />
               <button className="btn ghost" onClick={hint} disabled={hints.length >= optimal.length}>
                 Pista ({hints.length})
               </button>

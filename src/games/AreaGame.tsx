@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { GameLayout, Stat } from '../components/GameLayout'
 import { COUNTRIES, flagUrl, type Country } from '../data/countries'
+import { useGameKeys } from '../lib/keys'
 import { formatNumber, getBest, pick, saveBest } from '../lib/utils'
 
 // Solo países con superficie razonablemente distinta para que no haya empates
@@ -19,6 +20,12 @@ export default function AreaGame() {
   const [streak, setStreak] = useState(0)
   const [answer, setAnswer] = useState<'ok' | 'ko' | null>(null)
   const [record, setRecord] = useState(false)
+
+  // 1 = más grande, 2 = más pequeño; Intro para volver a jugar tras fallar
+  useGameKeys({
+    onOption: answer ? undefined : (i) => i < 2 && guess(i === 0),
+    onNext: answer === 'ko' ? () => restart() : undefined,
+  })
 
   function guess(bigger: boolean) {
     if (answer) return
@@ -71,10 +78,10 @@ export default function AreaGame() {
           ) : (
             <div className="vs-buttons">
               <button className="btn primary" onClick={() => guess(true)}>
-                Más grande
+                <kbd>1</kbd> Más grande
               </button>
               <button className="btn" onClick={() => guess(false)}>
-                Más pequeño
+                <kbd>2</kbd> Más pequeño
               </button>
             </div>
           )}

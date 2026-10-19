@@ -7,9 +7,18 @@ interface Props {
   exclude?: Set<string>
   placeholder?: string
   disabled?: boolean
+  /** Pone el cursor en el campo al aparecer (p. ej. al empezar una ronda nueva) */
+  autoFocus?: boolean
 }
 
-export function CountryInput({ onSubmit, pool = COUNTRIES, exclude, placeholder = 'Escribe un país…', disabled }: Props) {
+export function CountryInput({
+  onSubmit,
+  pool = COUNTRIES,
+  exclude,
+  placeholder = 'Escribe un país…',
+  disabled,
+  autoFocus,
+}: Props) {
   const [text, setText] = useState('')
   const [active, setActive] = useState(0)
   const suggestions = searchCountries(text, pool, 8).filter((c) => !exclude?.has(c.code)).slice(0, 6)
@@ -26,6 +35,7 @@ export function CountryInput({ onSubmit, pool = COUNTRIES, exclude, placeholder 
       <input
         value={text}
         disabled={disabled}
+        autoFocus={autoFocus}
         placeholder={placeholder}
         autoComplete="off"
         spellCheck={false}

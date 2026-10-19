@@ -4,6 +4,7 @@ import { Silhouette } from '../components/Silhouette'
 import { COUNTRIES, flagUrl, type Country } from '../data/countries'
 import { useGeo } from '../data/geo'
 import { formatNumber, pick, sample, seededRng, shuffle, type Rng } from '../lib/utils'
+import { useGameKeys } from '../lib/keys'
 import { makeTraitQuestion } from './TraitGame'
 
 interface DailyQuestion {
@@ -198,6 +199,18 @@ export default function DailyGame() {
 
   const q = questions[Math.min(index, questions.length - 1)]
   const given = answers[index]
+  const onQuestion = index < questions.length
+
+  useGameKeys({
+    onOption:
+      onQuestion && given === undefined
+        ? (i) => {
+            const o = q.options[i]
+            if (o) answer(o.value)
+          }
+        : undefined,
+    onNext: onQuestion && given !== undefined ? () => setIndex(index + 1) : undefined,
+  })
 
   return (
     <GameLayout
@@ -243,11 +256,12 @@ export default function DailyGame() {
           <p className="question">{q.title}</p>
           <div className="prompt">{q.prompt()}</div>
           <div className={`options ${q.options.length === 2 ? 'two' : ''}`}>
-            {q.options.map((o) => {
+            {q.options.map((o, i) => {
               let cls = 'option'
               if (given !== undefined) cls += o.value === q.answer ? ' correct' : o.value === given ? ' wrong' : ' dim'
               return (
                 <button key={o.value} className={cls} onClick={() => answer(o.value)} disabled={given !== undefined}>
+                  <kbd>{i + 1}</kbd>
                   {o.label}
                 </button>
               )
@@ -262,8 +276,8 @@ export default function DailyGame() {
             </p>
           )}
           {given !== undefined && (
-            <button className="btn primary next" autoFocus onClick={() => setIndex(index + 1)}>
-              {index === questions.length - 1 ? 'Ver resultado' : 'Siguiente →'}
+            <button className="btn primary next" onClick={() => setIndex(index + 1)}>
+              {index === questions.length - 1 ? 'Ver resultado' : 'Siguiente →'} <kbd>Intro</kbd>
             </button>
           )}
         </div>

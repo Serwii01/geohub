@@ -15,6 +15,7 @@ import {
   type PlayMode,
   type Rounds,
 } from '../lib/daily'
+import { DIFFICULTIES, type Difficulty } from '../lib/difficulty'
 import { getBest, saveBest, type Rng } from '../lib/utils'
 
 export const DAILY_ROUNDS = 10
@@ -30,7 +31,7 @@ interface Options<Q> {
   /** Identificador para récords y diario (p. ej. "banderas") */
   gameId: string
   /** Genera una pregunta nueva sin repetir los sujetos de `used` */
-  make: (ctx: { rng: Rng; used: Set<string>; region: RegionOption }) => Q
+  make: (ctx: { rng: Rng; used: Set<string>; region: RegionOption; difficulty: Difficulty }) => Q
   /** Código del país sobre el que trata la pregunta */
   subject: (q: Q) => string
   /** Puntos máximos por pregunta */
@@ -39,6 +40,8 @@ interface Options<Q> {
   enabled?: boolean
   /** Otros valores que, al cambiar, reinician la partida */
   deps?: unknown[]
+  /** Muestra el selector de dificultad (solo en modo libre) */
+  withDifficulty?: boolean
 }
 
 /**
@@ -46,15 +49,18 @@ interface Options<Q> {
  * con filtro por continente) y modo diario (10 preguntas iguales para todos,
  * se guarda el progreso y solo se juega una vez al día).
  */
-export function useRoundGame<Q>({ gameId, make, subject, max, enabled = true, deps = [] }: Options<Q>) {
+export function useRoundGame<Q>({ gameId, make, subject, max, enabled = true, deps = [], withDifficulty = false }: Options<Q>) {
   const [playMode, setPlayMode] = usePref<PlayMode>(`geohub:modo:${gameId.split('-')[0]}`, 'libre')
   const [rounds, setRounds] = usePref<Rounds>('geohub:rondas', 10)
   const [regionPref, setRegion] = useState<RegionOption>('Mundo')
+  const [difficultyPref, setDifficulty] = usePref<Difficulty>('geohub:dificultad', 'normal')
   const daily = playMode === 'diario'
+  // El diario es igual para todos: siempre en dificultad normal
+  const difficulty: Difficulty = daily || !withDifficulty ? 'normal' : difficultyPref
   const region: RegionOption = daily ? 'Mundo' : regionPref
   const date = todayKey()
   const total = daily ? DAILY_ROUNDS : rounds === 'inf' ? Infinity : 10
-  const bestKey = `${gameId}:${region}${rounds === 'inf' ? ':inf' : ''}`
+  const bestKey = `${gameId}:${region}${rounds === 'inf' ? ':inf' : ''}${difficulty === 'normal' ? '' : ':' + difficulty}`
 
   const [questions, setQuestions] = useState<Q[]>([])
   const [answers, setAnswers] = useState<Answer[]>([])
@@ -71,7 +77,7 @@ export function useRoundGame<Q>({ gameId, make, subject, max, enabled = true, de
       const used = new Set<string>()
       const qs: Q[] = []
       for (let i = 0; i < DAILY_ROUNDS; i++) {
-        const q = make({ rng, used, region: 'Mundo' })
+        const q = make({ rng, used, region: 'Mundo', difficulty: 'normal' })
         used.add(subject(q))
         qs.push(q)
       }
@@ -82,7 +88,7 @@ export function useRoundGame<Q>({ gameId, make, subject, max, enabled = true, de
       setIndex(Math.min(prev.length, DAILY_ROUNDS - 1))
       setFinished(saved?.done ?? false)
     } else {
-      setQuestions([make({ rng: Math.random, used: new Set(), region })])
+      setQuestions([make({ rng: Math.random, used: new Set(), region, difficulty })])
       setAnswers([])
       setIndex(0)
       setFinished(false)
@@ -90,7 +96,7 @@ export function useRoundGame<Q>({ gameId, make, subject, max, enabled = true, de
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(start, [enabled, playMode, rounds, regionPref, ...deps])
+  useEffect(start, [enabled, playMode, rounds, regionPref, difficulty, ...deps])
 
   const score = answers.reduce((s, a) => s + (a?.p ?? 0), 0)
   const squares = answers.map((a) => square(a.p / max)).join('')
@@ -128,7 +134,7 @@ export function useRoundGame<Q>({ gameId, make, subject, max, enabled = true, de
     if (index + 1 >= total) return finish()
     if (questions.length <= index + 1) {
       const used = new Set(questions.map(subject))
-      setQuestions([...questions, make({ rng: Math.random, used, region })])
+      setQuestions([...questions, make({ rng: Math.random, used, region, difficulty })])
     }
     setIndex(index + 1)
   }
@@ -140,6 +146,9 @@ export function useRoundGame<Q>({ gameId, make, subject, max, enabled = true, de
     setRounds,
     region,
     setRegion,
+    difficulty,
+    setDifficulty,
+    withDifficulty,
     daily,
     date,
     total,
@@ -194,7 +203,10 @@ export function PlayBar({
   showRegion = true,
   children,
 }: {
-  game: Pick<RoundGame<unknown>, 'playMode' | 'setPlayMode' | 'rounds' | 'setRounds' | 'region' | 'setRegion' | 'daily'>
+  game: Pick<
+    RoundGame<unknown>,
+    'playMode' | 'setPlayMode' | 'rounds' | 'setRounds' | 'region' | 'setRegion' | 'daily' | 'difficulty' | 'setDifficulty' | 'withDifficulty'
+  >
   showRegion?: boolean
   children?: ReactNode
 }) {
@@ -203,6 +215,19 @@ export function PlayBar({
       {showRegion && !game.daily ? <RegionPicker value={game.region} onChange={game.setRegion} /> : <span />}
       <div className="toolbar-right">
         {children}
+        {game.withDifficulty && !game.daily && (
+          <div className="chips" title="Dificultad">
+            {DIFFICULTIES.map((d) => (
+              <button
+                key={d.value}
+                className={`chip ${game.difficulty === d.value ? 'on' : ''}`}
+                onClick={() => game.setDifficulty(d.value)}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        )}
         <ModeSwitch value={game.playMode} onChange={game.setPlayMode} />
         {!game.daily && (
           <div className="chips">

@@ -5,6 +5,7 @@ import { PlayBar, RoundResult, useRoundGame } from '../components/RoundGame'
 import { WorldMap } from '../components/WorldMap'
 import { BY_CODE, flagUrl, inRegion, type Country } from '../data/countries'
 import { regionFit, useGeo } from '../data/geo'
+import { useGameKeys } from '../lib/keys'
 import { pick } from '../lib/utils'
 
 const TRIES = 2
@@ -27,6 +28,7 @@ export default function MysteryGame() {
 
   // Los fallos son de cada ronda
   useEffect(() => setWrong([]), [game.index, game.q])
+  useGameKeys({ onNext: game.given && !game.finished ? game.next : undefined })
 
   if (!geo || !game.q) return <GameLayout title="¿Qué país es?"><Loading /></GameLayout>
 
@@ -77,8 +79,8 @@ export default function MysteryGame() {
                 <img className="flag-small" src={flagUrl(target, 160)} alt="" />
                 <strong>{target.name}</strong>
                 <span>{solved ? (given.p === 1 ? '+1 punto' : '+2 puntos') : 'Sin puntos esta vez'}</span>
-                <button className="btn primary" onClick={game.next} autoFocus>
-                  {game.index + 1 >= game.total ? 'Ver resultado' : 'Siguiente'}
+                <button className="btn primary" onClick={game.next}>
+                  {game.index + 1 >= game.total ? 'Ver resultado' : 'Siguiente'} <kbd>Intro</kbd>
                 </button>
               </div>
             ) : (
@@ -86,7 +88,7 @@ export default function MysteryGame() {
                 <p className="muted">
                   Intento {wrong.length + 1} de {TRIES}
                 </p>
-                <CountryInput key={game.index} onSubmit={guess} exclude={new Set(wrong)} />
+                <CountryInput key={game.index} onSubmit={guess} exclude={new Set(wrong)} autoFocus />
               </>
             )}
             {game.total === Infinity && game.answers.length > 0 && (

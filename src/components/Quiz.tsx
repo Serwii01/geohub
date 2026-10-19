@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react'
 import { inRegion, type Country } from '../data/countries'
-import { pick, sample, shuffle, type Rng } from '../lib/utils'
+import { distractorCountries, type Difficulty } from '../lib/difficulty'
+import { useGameKeys } from '../lib/keys'
+import { pick, shuffle, type Rng } from '../lib/utils'
 import { GameLayout, Stat } from './GameLayout'
 import { PlayBar, RoundResult, useRoundGame } from './RoundGame'
 
@@ -23,14 +25,15 @@ export interface Question {
   options: Country[]
 }
 
-export function makeQuestion(pool: Country[], used: Set<string>, rng: Rng = Math.random): Question {
+export function makeQuestion(
+  pool: Country[],
+  used: Set<string>,
+  rng: Rng = Math.random,
+  difficulty: Difficulty = 'normal',
+): Question {
   const fresh = pool.filter((c) => !used.has(c.code))
   const target = pick(fresh.length ? fresh : pool, rng)
-  // Distractores: preferentemente de la misma región para que no sea trivial
-  const near = pool.filter((c) => c.code !== target.code && c.region === target.region)
-  const far = pool.filter((c) => c.code !== target.code && c.region !== target.region)
-  const distractors = sample(near, 3, rng)
-  if (distractors.length < 3) distractors.push(...sample(far, 3 - distractors.length, rng))
+  const distractors = distractorCountries(target, pool, difficulty, rng)
   return { target, options: shuffle([target, ...distractors], rng) }
 }
 
@@ -40,14 +43,27 @@ export function Quiz({ gameId, title, subtitle, prompt, label, question, filter,
     max: 1,
     deps: [resetKey],
     subject: (q) => q.target.code,
-    make: ({ rng, used, region }) =>
+    withDifficulty: true,
+    make: ({ rng, used, region, difficulty }) =>
       makeQuestion(
         inRegion(region).filter((c) => (filter ? filter(c) : true)),
         used,
         rng,
+        difficulty,
       ),
   })
   const { q, given } = game
+
+  useGameKeys({
+    onOption:
+      q && !given && !game.finished
+        ? (i) => {
+            const c = q.options[i]
+            if (c) game.answer(c.code, c.code === q.target.code ? 1 : 0)
+          }
+        : undefined,
+    onNext: given && !game.finished ? game.next : undefined,
+  })
 
   return (
     <GameLayout
@@ -72,7 +88,7 @@ export function Quiz({ gameId, title, subtitle, prompt, label, question, filter,
             {question && <p className="question">{question}</p>}
             <div className="prompt">{prompt(q.target)}</div>
             <div className={`options ${optionsClass ?? ''}`}>
-              {q.options.map((c) => {
+              {q.options.map((c, i) => {
                 let cls = 'option'
                 if (given) {
                   if (c.code === q.target.code) cls += ' correct'
@@ -81,6 +97,7 @@ export function Quiz({ gameId, title, subtitle, prompt, label, question, filter,
                 }
                 return (
                   <button key={c.code} className={cls} onClick={() => game.answer(c.code, c.code === q.target.code ? 1 : 0)}>
+                    <kbd>{i + 1}</kbd>
                     {label(c)}
                   </button>
                 )
@@ -88,8 +105,8 @@ export function Quiz({ gameId, title, subtitle, prompt, label, question, filter,
             </div>
             <div className="quiz-actions">
               {given && (
-                <button className="btn primary" onClick={game.next} autoFocus>
-                  {game.index + 1 >= game.total ? 'Ver resultado' : 'Siguiente →'}
+                <button className="btn primary" onClick={game.next}>
+                  {game.index + 1 >= game.total ? 'Ver resultado' : 'Siguiente →'} <kbd>Intro</kbd>
                 </button>
               )}
               {game.total === Infinity && game.answers.length > 0 && (

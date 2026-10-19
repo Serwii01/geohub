@@ -7,6 +7,7 @@ import { Silhouette } from '../components/Silhouette'
 import { WorldMap } from '../components/WorldMap'
 import { BY_CODE, COUNTRIES, flagUrl, type Country } from '../data/countries'
 import { useGeo } from '../data/geo'
+import { useGameKeys } from '../lib/keys'
 import { bearing, distanceKm, formatNumber, getBest, pick, saveBest } from '../lib/utils'
 
 const MAX_TRIES = 6
@@ -47,13 +48,13 @@ export default function SilhouetteGame() {
 
   if (pool.length && !freeTarget) setFreeTarget(pick(pool))
   const target = mode.daily ? dailyTarget : freeTarget
+  const codes = mode.daily ? (mode.record?.progress ?? []) : freeGuesses
+  const over = !!target && (codes.includes(target.code) || codes.length >= MAX_TRIES)
+  useGameKeys({ onNext: over && !mode.daily ? () => newGame() : undefined })
   if (!geo || !target) return <GameLayout title="Siluetas"><Loading /></GameLayout>
 
-  const codes = mode.daily ? (mode.record?.progress ?? []) : freeGuesses
   const guesses = codes.map((code) => makeGuess(BY_CODE.get(code)!, target))
   const won = codes.includes(target.code)
-  const lost = !won && codes.length >= MAX_TRIES
-  const over = won || lost
 
   function guess(c: Country) {
     if (over || !target) return
@@ -113,7 +114,7 @@ export default function SilhouetteGame() {
           )}
         </div>
         <div className="card">
-          {!over && <CountryInput onSubmit={guess} exclude={new Set(codes)} />}
+          {!over && <CountryInput onSubmit={guess} exclude={new Set(codes)} autoFocus />}
           <ul className="guess-list">
             {guesses.map((g) => (
               <li key={g.country.code} className={g.km === 0 ? 'correct' : ''}>
@@ -148,7 +149,7 @@ export default function SilhouetteGame() {
                 />
               ) : (
                 <button className="btn primary" onClick={newGame}>
-                  Nuevo país →
+                  Nuevo país → <kbd>Intro</kbd>
                 </button>
               )}
             </>

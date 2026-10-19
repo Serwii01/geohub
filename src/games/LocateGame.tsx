@@ -4,6 +4,7 @@ import { PlayBar, RoundResult, useRoundGame } from '../components/RoundGame'
 import { WorldMap } from '../components/WorldMap'
 import { BY_CODE, inRegion, type Country } from '../data/countries'
 import { regionFit, useGeo, type GeoData } from '../data/geo'
+import { useGameKeys } from '../lib/keys'
 import { distanceKm, formatNumber, pick } from '../lib/utils'
 
 const MAX = 1000
@@ -35,6 +36,7 @@ export default function LocateGame() {
     },
   })
   const fit = useMemo(() => (geo ? regionFit(geo, game.region) : undefined), [geo, game.region])
+  useGameKeys({ onNext: game.given && !game.finished ? game.next : undefined })
 
   if (!geo || !game.q) return <GameLayout title="Localiza"><Loading /></GameLayout>
 
@@ -98,7 +100,7 @@ export default function LocateGame() {
               )}
               {clicked && (
                 <button className="btn primary" onClick={game.next}>
-                  {game.index + 1 >= game.total ? 'Ver resultado' : 'Siguiente →'}
+                  {game.index + 1 >= game.total ? 'Ver resultado' : 'Siguiente →'} <kbd>Intro</kbd>
                 </button>
               )}
             </span>

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { inRegion, type Country } from '../data/countries'
 import { getBest, pick, sample, saveBest, shuffle } from '../lib/utils'
-import type { IconName } from './Icons'
 import { GameLayout, RegionPicker, Stat, type RegionOption } from './GameLayout'
 
 const ROUNDS = 10
@@ -9,7 +8,7 @@ const ROUNDS = 10
 interface Props {
   gameId: string
   title: string
-  icon: IconName
+  optionsClass?: string
   subtitle: string
   prompt: (target: Country) => ReactNode
   label: (c: Country) => ReactNode
@@ -35,7 +34,7 @@ function makeQuestion(pool: Country[], used: Set<string>): Question {
   return { target, options: shuffle([target, ...distractors]) }
 }
 
-export function Quiz({ gameId, title, icon, subtitle, prompt, label, question, filter, toolbar, resetKey }: Props) {
+export function Quiz({ gameId, title, optionsClass, subtitle, prompt, label, question, filter, toolbar, resetKey }: Props) {
   const [region, setRegion] = useState<RegionOption>('Mundo')
   const pool = inRegion(region).filter((c) => (filter ? filter(c) : true))
   const [round, setRound] = useState(1)
@@ -91,7 +90,6 @@ export function Quiz({ gameId, title, icon, subtitle, prompt, label, question, f
   return (
     <GameLayout
       title={title}
-      icon={icon}
       subtitle={subtitle}
       stats={
         <>
@@ -122,7 +120,7 @@ export function Quiz({ gameId, title, icon, subtitle, prompt, label, question, f
         <div className="card quiz">
           {question && <p className="question">{question}</p>}
           <div className="prompt">{prompt(q.target)}</div>
-          <div className="options">
+          <div className={`options ${optionsClass ?? ""}`}>
             {q.options.map((c) => {
               let cls = 'option'
               if (chosen) {

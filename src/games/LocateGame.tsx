@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { GameLayout, Loading, RegionPicker, Stat, type RegionOption } from '../components/GameLayout'
 import { WorldMap } from '../components/WorldMap'
 import { BY_CODE, inRegion, type Country } from '../data/countries'
-import { mainShape, useGeo } from '../data/geo'
+import { regionFit, useGeo } from '../data/geo'
 import { distanceKm, formatNumber, getBest, saveBest, sample } from '../lib/utils'
 
 const ROUNDS = 10
@@ -21,15 +21,15 @@ export default function LocateGame() {
 
   const pool = useMemo(() => {
     if (!geo) return []
-    // En el mapa mundial los países diminutos son imposibles de pulsar
-    const minArea = region === 'Mundo' ? 30000 : 1000
+    // Los microestados quedan fuera: ni con zoom se distinguen bien
+    const minArea = region === 'Mundo' ? 2000 : 300
     return inRegion(region).filter((c) => geo.byCode.has(c.code) && c.area >= minArea)
   }, [geo, region])
 
   const fit = useMemo(() => {
-    if (!geo || region === 'Mundo') return undefined
-    return pool.filter((c) => c.code !== 'RUS').map((c) => mainShape(geo.byCode.get(c.code)!))
-  }, [geo, pool, region])
+    if (!geo) return undefined
+    return regionFit(geo, region)
+  }, [geo, region])
 
   function restart() {
     setTargets(sample(pool, ROUNDS))
@@ -44,7 +44,7 @@ export default function LocateGame() {
     restart()
   }, [pool]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!geo || !targets.length) return <GameLayout title="Localiza" icon="pin"><Loading /></GameLayout>
+  if (!geo || !targets.length) return <GameLayout title="Localiza"><Loading /></GameLayout>
 
   const target = targets[round]
 
@@ -80,8 +80,7 @@ export default function LocateGame() {
   return (
     <GameLayout
       title="Localiza"
-      icon="pin"
-      subtitle="Haz clic en el país que se pide. Cuanto más cerca, más puntos."
+      subtitle="Pulsa el país que se pide. Usa la rueda o pellizca para hacer zoom y arrastra para moverte."
       stats={
         <>
           <Stat label="Ronda" value={`${round + 1}/${targets.length}`} />
@@ -122,7 +121,7 @@ export default function LocateGame() {
               </button>
             )}
           </div>
-          <WorldMap features={geo.all} fit={fit} fill={fill} onSelect={select} height={540} />
+          <WorldMap features={geo.all} fit={fit} fill={fill} onSelect={select} ring={clicked ? target.code : undefined} height={560} zoomable />
         </div>
       )}
     </GameLayout>

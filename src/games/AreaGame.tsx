@@ -48,7 +48,6 @@ export default function AreaGame() {
   return (
     <GameLayout
       title="¿Más grande o más pequeño?"
-      icon="area"
       subtitle="¿El país de la derecha tiene más o menos superficie?"
       stats={
         <>

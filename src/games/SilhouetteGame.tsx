@@ -1,37 +1,15 @@
 import { useMemo, useState } from 'react'
-import { geoAzimuthalEqualArea, geoCentroid, geoPath } from 'd3-geo'
 import { CountryInput } from '../components/CountryInput'
 import { Icon } from '../components/Icons'
 import { GameLayout, Loading, Stat } from '../components/GameLayout'
+import { Silhouette } from '../components/Silhouette'
 import { WorldMap } from '../components/WorldMap'
 import { COUNTRIES, flagUrl, type Country } from '../data/countries'
-import { mainShape, useGeo, type CountryFeature } from '../data/geo'
+import { useGeo } from '../data/geo'
 import { bearing, distanceKm, formatNumber, getBest, pick, saveBest } from '../lib/utils'
 
 const MAX_TRIES = 6
 const MAX_DIST = 20000
-
-function Silhouette({ feature }: { feature: CountryFeature }) {
-  const d = useMemo(() => {
-    const shape = mainShape(feature)
-    const [lon, lat] = geoCentroid(shape)
-    const projection = geoAzimuthalEqualArea()
-      .rotate([-lon, -lat])
-      .fitExtent(
-        [
-          [20, 20],
-          [380, 380],
-        ],
-        shape,
-      )
-    return geoPath(projection)(shape) ?? ''
-  }, [feature])
-  return (
-    <svg className="silhouette" viewBox="0 0 400 400">
-      <path d={d} />
-    </svg>
-  )
-}
 
 interface Guess {
   country: Country
@@ -51,7 +29,7 @@ export default function SilhouetteGame() {
   const [streak, setStreak] = useState(0)
 
   if (geo && !target && pool.length) setTarget(pick(pool))
-  if (!geo || !target) return <GameLayout title="Siluetas" icon="shape"><Loading /></GameLayout>
+  if (!geo || !target) return <GameLayout title="Siluetas"><Loading /></GameLayout>
 
   const won = guesses.some((g) => g.country.code === target.code)
   const lost = !won && guesses.length >= MAX_TRIES
@@ -85,7 +63,6 @@ export default function SilhouetteGame() {
   return (
     <GameLayout
       title="Siluetas"
-      icon="shape"
       subtitle="Adivina el país por su forma. Te damos distancia y dirección."
       stats={
         <>

@@ -11,7 +11,6 @@ export default function CapitalGame() {
       gameId={`capitales-${mode}`}
       resetKey={mode}
       title="Capitales"
-      icon="capital"
       subtitle="Relaciona cada país con su capital"
       filter={(c) => !!c.capital}
       question={mode === 'capital' ? '¿Cuál es la capital de…' : '¿De qué país es capital…'}

@@ -68,7 +68,7 @@ export default function NameAllGame() {
     }
   }
 
-  if (!geo) return <GameLayout title="Contrarreloj" icon="clock"><Loading /></GameLayout>
+  if (!geo) return <GameLayout title="Contrarreloj"><Loading /></GameLayout>
 
   const foundSet = new Set(found)
   const fill = (code: string) => {
@@ -80,7 +80,6 @@ export default function NameAllGame() {
   return (
     <GameLayout
       title="Contrarreloj"
-      icon="clock"
       subtitle="Nombra todos los países del continente antes de que acabe el tiempo."
       stats={
         <>

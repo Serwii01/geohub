@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { feature } from 'topojson-client'
 import { geoArea, geoCentroid, geoDistance } from 'd3-geo'
 import type { Feature, FeatureCollection, Geometry, MultiPolygon } from 'geojson'
-import { BY_CCN3 } from './countries'
+import { BY_CCN3, inRegion, type Region } from './countries'
 
 export type CountryFeature = Feature<Geometry, { code: string }>
 
@@ -19,18 +19,19 @@ export function loadGeo(): Promise<GeoData> {
     const topo = mod.default
     const fc = feature(topo, topo.objects.countries) as unknown as FeatureCollection
     const byCode = new Map<string, CountryFeature>()
-    for (const f of fc.features) {
-      const c = BY_CCN3.get(String(f.id))
-      if (!c) continue
-      byCode.set(c.code, { ...f, properties: { code: c.code } } as CountryFeature)
-    }
-    // Territorios no independientes también se dibujan como fondo
-    const all: CountryFeature[] = fc.features
+    const all: CountryFeature[] = []
+    // Algunos códigos se repiten (p. ej. Australia y sus islas del mar del Coral):
+    // el país se queda con la forma más grande y el resto se dibuja como fondo
+    const sorted = fc.features
       .filter((f) => String(f.id) !== '010')
-      .map((f) => {
-        const c = BY_CCN3.get(String(f.id))
-        return { ...f, properties: { code: c?.code ?? `X${f.id ?? Math.random()}` } } as CountryFeature
-      })
+      .sort((a, b) => geoArea(b) - geoArea(a))
+    sorted.forEach((f, i) => {
+      const c = BY_CCN3.get(String(f.id))
+      const code = c && !byCode.has(c.code) ? c.code : `X${i}`
+      const cf = { ...f, properties: { code } } as CountryFeature
+      if (!code.startsWith('X')) byCode.set(code, cf)
+      all.push(cf)
+    })
     return { byCode, all }
   })
   return cache
@@ -48,6 +49,14 @@ export function useGeo(): GeoData | null {
   return geo
 }
 
+/** Formas con las que encuadrar un continente (sin Rusia, que lo deformaría) */
+export function regionFit(geo: GeoData, region: Region | 'Mundo'): CountryFeature[] | undefined {
+  if (region === 'Mundo') return undefined
+  return inRegion(region)
+    .filter((c) => c.code !== 'RUS' && c.area >= 300 && geo.byCode.has(c.code))
+    .map((c) => mainShape(geo.byCode.get(c.code)!, 1000))
+}
+
 const mainCache = new Map<string, CountryFeature>()
 
 /**
@@ -55,7 +64,7 @@ const mainCache = new Map<string, CountryFeature>()
  * (Guayana Francesa, Alaska, Hawái…) para que la silueta sea reconocible.
  */
 export function mainShape(f: CountryFeature, maxKm = 2500): CountryFeature {
-  const key = f.properties.code
+  const key = `${f.properties.code}:${maxKm}`
   const hit = mainCache.get(key)
   if (hit) return hit
   let result = f

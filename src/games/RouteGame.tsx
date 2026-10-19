@@ -67,7 +67,7 @@ export default function RouteGame() {
   const [wins, setWins] = useState(0)
 
   if (graph && !puzzle) setPuzzle(makePuzzle(graph))
-  if (!geo || !graph || !puzzle) return <GameLayout title="Rutas" icon="route"><Loading /></GameLayout>
+  if (!geo || !graph || !puzzle) return <GameLayout title="Rutas"><Loading /></GameLayout>
 
   const { start, end, hops, fromStart, fromEnd, optimal } = puzzle
   const maxGuesses = hops - 1 + 4
@@ -125,7 +125,6 @@ export default function RouteGame() {
   return (
     <GameLayout
       title="Rutas"
-      icon="route"
       subtitle="Conecta dos países por tierra nombrando los que hay en medio."
       stats={
         <>

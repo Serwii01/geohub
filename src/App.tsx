@@ -11,6 +11,8 @@ const games = {
   localiza: lazy(() => import('./games/LocateGame')),
   superficie: lazy(() => import('./games/AreaGame')),
   contrarreloj: lazy(() => import('./games/NameAllGame')),
+  vecinos: lazy(() => import('./games/NeighborsGame')),
+  'que-pais': lazy(() => import('./games/MysteryGame')),
 }
 
 export default function App() {

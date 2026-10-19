@@ -1,18 +1,20 @@
-# 🌍 GeoHub
+# GeoHub
 
 Hub de juegos de geografía en español. React + TypeScript + Vite, mapas con d3-geo.
 
 ## Juegos
 
-| Juego | Tipo | Descripción |
-|---|---|---|
-| 🚩 Banderas | Test | Adivina el país por su bandera (4 opciones, filtro por continente) |
-| 🗺️ Siluetas | Deducción | Estilo Worldle: adivina por la forma, con distancia, dirección y % de cercanía |
-| 🧭 Rutas | Estrategia | Estilo travle.earth: conecta dos países por tierra nombrando los intermedios |
-| 🏛️ Capitales | Test | País → capital o capital → país |
-| 📍 Localiza | Mapa | Haz clic en el país; puntos según la distancia |
-| 📏 ¿Más grande? | Intuición | Más grande / más pequeño por superficie, modo racha |
-| ⏱️ Contrarreloj | Memoria | Nombra todos los países de un continente contra el reloj |
+| Juego | Descripción |
+|---|---|
+| Rutas | Estilo travle.earth: conecta dos países por tierra nombrando los intermedios |
+| Siluetas | Estilo Worldle: adivina por la forma, con distancia, dirección y % de cercanía |
+| Banderas | Bandera → país o país → bandera, con filtro por continente |
+| Localiza | Pulsa el país en el mapa (con zoom y arrastre); puntos según la distancia |
+| ¿Qué país es? | Un país marcado en el mapa: escribe cuál es |
+| Vecinos | Nombra todos los países con los que hace frontera |
+| Capitales | País → capital o capital → país |
+| ¿Más grande? | Más grande / más pequeño por superficie, modo racha |
+| Contrarreloj | Nombra todos los países de un continente contra el reloj |
 
 Los récords se guardan en `localStorage`.
 
